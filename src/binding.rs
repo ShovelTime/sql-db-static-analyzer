@@ -18,12 +18,35 @@ fn determine_dialect_from_str(string: &str) -> Option<Box<dyn Dialect>>
 }
 
 #[wasm_bindgen]
+pub struct DatabaseColumn
+{
+        name: String,
+        columns: Vec<String>
+}
+
+#[wasm_bindgen]
+pub struct JoinRules
+{
+        column1: String,
+        key1: Vec<String>,
+        column2: String,
+        key2: Vec<String>,
+}
+
+#[wasm_bindgen]
 pub struct StmtAnalyzer{
         dialect_str: String,
         dialect: Box<dyn Dialect>,
         stmt: Option<String>,
-        tree: Vec<Statement>,
+
         
+
+        #[wasm_bindgen(skip)]
+        pub tree: Vec<Statement>,
+        #[wasm_bindgen(skip)]
+        pub database_columns : Vec<DatabaseColumn>,
+        #[wasm_bindgen(skip)]
+        pub join_rules: Vec<JoinRules>,
 
 }
 
@@ -31,7 +54,7 @@ pub struct StmtAnalyzer{
 impl StmtAnalyzer
 {
 
-    /// Construct Analyzer for a statement.
+    /// Construct Analyzer for a statement, given information about the current database.
     /// the parser will try to determine the dialect from the given string, if it is unable to, or
     /// the string input is null, it
     /// will instead default to SQLite.
@@ -51,14 +74,16 @@ impl StmtAnalyzer
     /// - duckdb
     /// - databricks
     #[wasm_bindgen(constructor)] 
-    pub fn new(dialect_opt: Option<String>) -> StmtAnalyzer
+    pub fn new(database_columns: Vec<DatabaseColumn>, join_rules: Vec<JoinRules>, dialect: Option<String>) -> StmtAnalyzer
     {
 
-        let dialect_str = dialect_opt.unwrap_or("sqlite".to_string());
-        let dialect = determine_dialect_from_str(dialect_str.as_str()).unwrap_or(Box::new(SQLiteDialect {}));
+        let dialect_str = dialect.unwrap_or("sqlite".to_string());
+        let db_dialect = determine_dialect_from_str(dialect_str.as_str()).unwrap_or(Box::new(SQLiteDialect {}));
         StmtAnalyzer {
+            database_columns,
+            join_rules,
             dialect_str,
-            dialect,
+            dialect: db_dialect,
             stmt: None,
             tree: Vec::new()
         }
