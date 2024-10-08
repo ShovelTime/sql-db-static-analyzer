@@ -1,4 +1,6 @@
 
+use std::collections::HashMap;
+
 use sqlparser::ast::Statement;
 use sqlparser::dialect::{dialect_from_str, Dialect, SQLiteDialect};
 use sqlparser::parser::Parser;
@@ -44,7 +46,7 @@ pub struct StmtAnalyzer{
         #[wasm_bindgen(skip)]
         pub tree: Vec<Statement>,
         #[wasm_bindgen(skip)]
-        pub database_columns : Vec<DatabaseColumn>,
+        pub database_columns : HashMap<String, DatabaseColumn>,
         #[wasm_bindgen(skip)]
         pub join_rules: Vec<JoinRules>,
 
@@ -78,9 +80,14 @@ impl StmtAnalyzer
     {
 
         let dialect_str = dialect.unwrap_or("sqlite".to_string());
+        let mut column_map = HashMap::with_capacity(database_columns.len());
+        for column in database_columns
+        {
+            column_map.insert(column.name.clone(), column);
+        }
         let db_dialect = determine_dialect_from_str(dialect_str.as_str()).unwrap_or(Box::new(SQLiteDialect {}));
         StmtAnalyzer {
-            database_columns,
+            database_columns: column_map,
             join_rules,
             dialect_str,
             dialect: db_dialect,
