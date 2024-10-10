@@ -1,6 +1,6 @@
-mod utils;
-mod heuristics;
-mod binding;
+pub mod utils;
+pub mod heuristics;
+pub mod binding;
 use wasm_bindgen::prelude::*;
 
 //handle errors or get annoyed at by compiler warnings 

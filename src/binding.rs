@@ -22,17 +22,44 @@ fn determine_dialect_from_str(string: &str) -> Option<Box<dyn Dialect>>
 #[wasm_bindgen]
 pub struct DatabaseColumn
 {
-        name: String,
-        columns: Vec<String>
+        #[wasm_bindgen(getter_with_clone)]
+        pub name: String,
+        #[wasm_bindgen(getter_with_clone)]
+        pub columns: Vec<String>
+}
+
+#[wasm_bindgen]
+impl DatabaseColumn
+{
+
+    #[wasm_bindgen(constructor)]
+    pub fn new(name : String, columns: Vec<String>) -> DatabaseColumn
+    {
+        DatabaseColumn { name, columns }
+    }
+
 }
 
 #[wasm_bindgen]
 pub struct JoinRules
 {
-        column1: String,
-        key1: Vec<String>,
-        column2: String,
-        key2: Vec<String>,
+        #[wasm_bindgen(getter_with_clone)]
+        pub column1: String,
+        #[wasm_bindgen(getter_with_clone)]
+        pub key1: Vec<String>,
+        #[wasm_bindgen(getter_with_clone)]
+        pub column2: String,
+        #[wasm_bindgen(getter_with_clone)]
+        pub key2: Vec<String>,
+}
+
+#[wasm_bindgen]
+impl JoinRules
+{
+    pub fn new(column1 : String, key1: Vec<String>, column2: String, key2: Vec<String>) -> JoinRules
+    {
+        JoinRules { column1, key1, column2, key2 }
+    }
 }
 
 #[wasm_bindgen]
@@ -97,19 +124,19 @@ impl StmtAnalyzer
     }
 
     #[wasm_bindgen(getter = getDialect)]
-    pub fn get_dialect(&self) -> String
+    pub fn dialect(&self) -> String
     {
         self.dialect_str.clone()
     }
 
     #[wasm_bindgen(getter = getStatement)]
-    pub fn get_stmt(&self) -> Option<String>
+    pub fn stmt(&self) -> Option<String>
     {
         self.stmt.clone()
     }
 
     #[wasm_bindgen(getter = getAST)]
-    pub fn get_ast(&self) -> JsValue
+    pub fn tree(&self) -> JsValue
     {
        serde_wasm_bindgen::to_value(&self.tree).unwrap_throw() 
     }
