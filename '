@@ -4,7 +4,9 @@ use sqlparser::{ast::{visit_statements, Expr, ExprWithAlias, GroupByExpr, Select
 use wasm_bindgen::prelude::wasm_bindgen;
 use crate::binding::StmtAnalyzer;
 
-static AGGREGATE_FUNC_NAMES : &[&str] = &["AVG", "COUNT", "MIN", "MAX", "SUM", "TOTAL"];
+static AGGREGATE_FUNC_NAMES : HashMap<&str, [&str]> = HashMap::from(
+    [("sqlite" , ["AVG", "COUNT", "MIN", "MAX", "SUM", "TOTAL"])]
+);
 
 #[wasm_bindgen]
 pub struct AnalyzerReport
@@ -89,28 +91,14 @@ pub struct RedudantDistinctIssue
 {
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
-struct AliasedValue<'a, T>
-{
-        alias: &'a String,
-        actual : &'a T
-}
+
 //An attempt to optimize Value fetching by reducing memory allocations
 struct StatementValues<'a>
 {
-        identifiers : HashSet<&'a String>,
-        compound: HashSet<&'a Vec<String>>,
-        aliased_identifier : HashSet<AliasedValue<'a, String>>,
-        aliased_compounds: HashSet<AliasedValue<'a, &'a Vec<String>>>
+        identifiers : Vec<&'a String>,
+        compound: Vec<&'a Vec<String>>,
+        function: String,
     
-}
-
-impl<'a> StatementValues<'a>
-{
-    pub fn new() -> StatementValues<'a>
-    {
-        StatementValues { identifiers: HashSet::new(), compound: HashSet::new(), aliased_identifier: HashSet::new(), aliased_compounds: HashSet::new() }
-    }
 }
 
 impl Issue for RedudantDistinctIssue
@@ -143,12 +131,12 @@ impl StmtAnalyzer
 
         let mut issues = Vec::<Box<dyn Issue>>::new();
 
-        issues.append(&mut self.check_distinct_and_group_by());
+        issues.append(&mut self.redudant_distinct());
 
         Ok(vec!())
     }
 
-    fn check_distinct_and_group_by(&self) -> Vec<Box<dyn Issue>>
+    fn redudant_distinct(&self) -> Vec<Box<dyn Issue>>
     {
         let mut issues : Vec<Box<dyn Issue>> = Vec::new();
         //Recursively walk through the AST, and execute the closure on every statement-type token
