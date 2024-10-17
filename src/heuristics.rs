@@ -93,15 +93,15 @@ pub struct RedudantDistinctIssue
 struct AliasedValue<'a, T>
 {
         alias: &'a String,
-        actual : &'a T
+        actual : T
 }
 //An attempt to optimize Value fetching by reducing memory allocations
 struct StatementValues<'a>
 {
         identifiers : HashSet<&'a String>,
-        compound: HashSet<&'a Vec<String>>,
-        aliased_identifier : HashSet<AliasedValue<'a, String>>,
-        aliased_compounds: HashSet<AliasedValue<'a, &'a Vec<String>>>
+        compound: HashSet<String>,
+        aliased_identifier : HashSet<AliasedValue<'a, &'a String>>,
+        aliased_compounds: HashSet<AliasedValue<'a, Vec<&'a String>>>
     
 }
 
@@ -111,6 +111,45 @@ impl<'a> StatementValues<'a>
     {
         StatementValues { identifiers: HashSet::new(), compound: HashSet::new(), aliased_identifier: HashSet::new(), aliased_compounds: HashSet::new() }
     }
+
+    pub fn insert_identifier(&mut self, name : &'a String)
+    {
+        self.identifiers.insert(name);
+    }
+    
+    pub fn insert_compound(&mut self, name: String)
+    {
+        self.compound.insert(name);
+    }
+
+    pub fn insert_aliased_indentifier (&mut self, alias: &'a String, actual : &'a String) 
+    {
+        self.aliased_identifier.insert(AliasedValue { alias, actual });
+    }
+
+    pub fn insert_aliased_compound (&mut self, alias: &'a String, actual : Vec<&'a String>)
+    {
+        self.aliased_compounds.insert(AliasedValue{alias, actual});
+    }
+
+    pub fn push_table_columns (&mut self, list: &'a Vec<String>)
+    {
+        self.identifiers.reserve(list.len());
+        for column_name in list
+        {
+            self.identifiers.insert(column_name);
+        }
+    }
+
+    pub fn difference(&self, other: &'a StatementValues) -> StatementValues<'a>
+    {
+        let mut res = StatementValues::new();
+
+        res.identifiers.extend(self.identifiers.difference(&other.identifiers));
+
+        res
+    }
+
 }
 
 impl Issue for RedudantDistinctIssue
@@ -171,10 +210,11 @@ impl StmtAnalyzer
                                             {
                                                 let select_values = self.extract_select_value(select);
                                                 let group_by_values = self.extract_group_by_values(expressions);
-                                                if select_values.difference(&group_by_values).collect::<Vec<&String>>().is_empty() {
-                                                    issues.push(Box::new(RedudantDistinctIssue{}));
+                                                //if select_values.difference(&group_by_values).collect::<Vec<&String>>().is_empty() {
+                                                //   issues.push(Box::new(RedudantDistinctIssue{}));
+                                                
 
-                                                }
+                                                //}
 
                                                                                                 
                                                 
@@ -205,10 +245,10 @@ impl StmtAnalyzer
     ///Returns a list of column names, or their aliases used within this particular statement
     ///Will attempt to expand wildcards according to the tables listed in the FROM clause.
     ///TODO: Subquery handling.
-    fn extract_select_value<'a>(&'a self, query: &'a Select) -> HashSet<String>
+    fn extract_select_value<'a>(&'a self, query: &'a Select) -> StatementValues<'a> 
     {
         let items = &query.projection;
-        let mut selection : HashSet<String> = HashSet::with_capacity(items.len());
+        let mut selection = StatementValues::new(); 
         for item in items{
             match item
             {
@@ -216,13 +256,12 @@ impl StmtAnalyzer
                     match expr {
                         Expr::Identifier(ident) => 
                         {
-                            selection.insert(ident.value.clone());
+                            selection.insert_identifier(&ident.value);
                         }
                         Expr::CompoundIdentifier(ident) =>{
                             let column_ident : String = ident.iter().map(|ident| ident.value.clone()).collect::<Vec<String>>().join("."); 
-                            if column_ident == ""  {continue;}
                             
-                            selection.insert(column_ident);
+                            selection.insert_compound(column_ident);
                         }
 
                         //higher match arms should catch this.
@@ -234,8 +273,17 @@ impl StmtAnalyzer
                     }
                 },
 
-                SelectItem::ExprWithAlias { alias , .. } => {
-                    selection.insert(alias.value.clone());
+                SelectItem::ExprWithAlias { alias , expr } => {
+                    match expr {
+                        Expr::Identifier(ident) => selection.insert_aliased_indentifier(&alias.value, &ident.value),
+
+                        Expr::CompoundIdentifier(ident) => {
+                            let columnt_ident : Vec<&String> = ident.iter().map(|ident| &ident.value).collect();
+                            selection.insert_aliased_compound(&alias.value, columnt_ident);
+                        }
+                        
+                        _ => () //TODO: Que?
+                    }
 
                 },
 
@@ -246,9 +294,10 @@ impl StmtAnalyzer
                     let table = self.database_columns.get(&table_name.value);
                     match table{
                         Some(res) => {
-                            selection.extend(res.columns.clone());
+                            selection.push_table_columns(&res.columns);
                         }
-                        None => ()
+                        None => () // Skip it, not much we can do here without the proper
+                        // information without the proper information anyway..
                     }                    
                 },
 
@@ -265,7 +314,7 @@ impl StmtAnalyzer
                                 let table = self.database_columns.get(&table_name.value);
                                 match table{
                                     Some(res) => {
-                                        selection.extend(res.columns.clone());
+                                        selection.push_table_columns(&res.columns);
                                     }
                                     None => ()
                                 }
