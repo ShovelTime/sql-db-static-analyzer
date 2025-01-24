@@ -28,7 +28,7 @@ version = "1.0.210"
 features = ["derive"]
 
 [dependencies.sqlparser]
-version = "0.51.0"
+version = "0.54.0"
 features = ["serde", "visitor"]
 
 [profile.release]
